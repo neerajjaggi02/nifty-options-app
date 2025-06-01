@@ -11,7 +11,7 @@ STOP_LOSS_PCT = 0.01  # 1%
 TARGET_PCT = 0.02     # 2%
 
 # ---------------------------
-st.title("� Nifty 50 Options Trade Signal App with SL/Target & Export")
+st.title("📌 Nifty 50 Options Trade Signal App with SL/Target & Export")
 
 @st.cache_data(ttl=3600)
 def fetch_data():
@@ -215,4 +215,3 @@ except Exception as e:
     # Catch and display any other errors during option chain loading
     st.error(f"❌ An unexpected error occurred while loading option chain: {e}")
     st.exception(e) # Show the full exception details for debugging
-�
