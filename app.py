@@ -26,12 +26,10 @@ def fetch_data():
             st.error("❌ 'Close' column not found in the downloaded data.")
             return pd.DataFrame()
 
-        df.dropna(inplace=True)
-
         df['Close'] = pd.to_numeric(df['Close'], errors='coerce')
         df.dropna(subset=['Close'], inplace=True)
 
-        if df['Close'].empty or not pd.api.types.is_numeric_dtype(df['Close']) or df['Close'].count() == 0:
+        if df['Close'].empty or not pd.api.types.is_numeric_dtype(df['Close']):
             st.error("❌ 'Close' column is empty or not numeric. Cannot calculate EMAs.")
             return pd.DataFrame()
 
@@ -39,16 +37,8 @@ def fetch_data():
             st.warning(f"⚠️ Insufficient data points ({len(df)} rows) to calculate EMA20.")
             return pd.DataFrame()
 
-        if isinstance(df['Close'], (pd.Series, list)):
-            df["EMA5"] = df["Close"].ewm(span=5, adjust=False).mean()
-            df["EMA20"] = df["Close"].ewm(span=20, adjust=False).mean()
-        else:
-            st.error("❌ 'Close' column is not a valid Series for EMA calculation.")
-            return pd.DataFrame()
-
-        if 'EMA5' not in df.columns or 'EMA20' not in df.columns:
-            st.error("❌ EMA5 or EMA20 columns could not be created.")
-            return pd.DataFrame()
+        df["EMA5"] = df["Close"].ewm(span=5, adjust=False).mean()
+        df["EMA20"] = df["Close"].ewm(span=20, adjust=False).mean()
 
         return df
     except Exception as e:
@@ -72,15 +62,15 @@ def apply_sl_target(df):
         st.warning("⚠️ 'Close' column not valid for Entry price.")
 
     df["StopLoss"] = df.apply(
-        lambda row: row["Entry"] * (1 - STOP_LOSS_PCT) if str(row.get("Signal", "")) == "Buy" and row["Entry"] is not None
-        else row["Entry"] * (1 + STOP_LOSS_PCT) if str(row.get("Signal", "")) == "Sell" and row["Entry"] is not None
+        lambda row: row["Entry"] * (1 - STOP_LOSS_PCT) if row.get("Signal") == "Buy" and pd.notna(row["Entry"])
+        else row["Entry"] * (1 + STOP_LOSS_PCT) if row.get("Signal") == "Sell" and pd.notna(row["Entry"])
         else None,
         axis=1
     )
 
     df["Target"] = df.apply(
-        lambda row: row["Entry"] * (1 + TARGET_PCT) if str(row.get("Signal", "")) == "Buy" and row["Entry"] is not None
-        else row["Entry"] * (1 - TARGET_PCT) if str(row.get("Signal", "")) == "Sell" and row["Entry"] is not None
+        lambda row: row["Entry"] * (1 + TARGET_PCT) if row.get("Signal") == "Buy" and pd.notna(row["Entry"])
+        else row["Entry"] * (1 - TARGET_PCT) if row.get("Signal") == "Sell" and pd.notna(row["Entry"])
         else None,
         axis=1
     )
@@ -134,8 +124,9 @@ try:
         if 'openInterest' in oc.columns:
             oc['openInterest'] = pd.to_numeric(oc['openInterest'], errors='coerce')
             oc.dropna(subset=['openInterest'], inplace=True)
-            if not oc.empty:
-                st.dataframe(oc[oc["openInterest"] > 100000].head(20))
+            filtered_oc = oc[oc["openInterest"] > 100000]
+            if not filtered_oc.empty:
+                st.dataframe(filtered_oc.head(20))
             else:
                 st.info("Option chain has no entries with OI > 100K after cleaning.")
         else:
