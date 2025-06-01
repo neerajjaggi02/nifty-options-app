@@ -22,7 +22,7 @@ if not nifty.empty:
     df = apply_ema_strategy(df)
 
     # Display chart
-    st.subheader("\ud83d\udcca Nifty Spot Data with EMA Strategy")
+    st.subheader(u"\U0001F4CA Nifty Spot Data with EMA Strategy")
     st.line_chart(df[["Close", "EMA5", "EMA20"]])
 
     # Identify trade signals
