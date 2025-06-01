@@ -38,14 +38,30 @@ def fetch_data():
             st.warning("⚠️ All rows were dropped after `dropna()`. This might indicate significant missing data.")
             return pd.DataFrame()
 
-        # Calculate Exponential Moving Averages (EMA)
-        df["EMA5"] = df["Close"].ewm(span=5, adjust=False).mean()
-        df["EMA20"] = df["Close"].ewm(span=20, adjust=False).mean()
+        # Ensure 'Close' column has numeric data type before EMA calculation
+        # 'errors='coerce'' will turn non-numeric values into NaN
+        df['Close'] = pd.to_numeric(df['Close'], errors='coerce')
+        # Drop rows where 'Close' became NaN after conversion, as they cannot be used for EMA
+        df.dropna(subset=['Close'], inplace=True) 
+
+        # Re-check if DataFrame is still not empty after cleaning 'Close' column
+        if not df.empty: 
+            # Calculate Exponential Moving Averages (EMA)
+            df["EMA5"] = df["Close"].ewm(span=5, adjust=False).mean()
+            df["EMA20"] = df["Close"].ewm(span=20, adjust=False).mean()
+        else:
+            st.warning("⚠️ 'Close' column became empty or non-numeric after cleaning. Cannot calculate EMAs.")
+            return pd.DataFrame() # Return empty if no data for EMA calculation
+
+        # Explicitly check if EMA columns were created successfully
+        if 'EMA5' not in df.columns or 'EMA20' not in df.columns:
+            st.error("❌ EMA5 or EMA20 columns could not be created. Data might be insufficient or problematic for EMA calculation.")
+            return pd.DataFrame()
         
         return df
     except Exception as e:
-        # Catch any errors during data fetching and display a message
-        st.error(f"❌ Error fetching data: {e}. Please ensure '^NSEI' is a valid ticker and you have an internet connection.")
+        # Catch any errors during data fetching or initial processing and display a message
+        st.error(f"❌ Error fetching or processing data: {e}. Please ensure '^NSEI' is a valid ticker and you have an internet connection.")
         return pd.DataFrame()
 
 def generate_signals(df):
