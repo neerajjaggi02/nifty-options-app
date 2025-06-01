@@ -31,8 +31,11 @@ def apply_sl_target(df):
     targets = []
 
     for _, row in df.iterrows():
-        signal = str(row["Signal"]) if pd.notna(row["Signal"]) else ""
+        signal = row.get("Signal", "")  # Use .get() to avoid KeyError
         entry = row["Close"]
+
+        if pd.notna(signal):  # Ensure that NaN values are properly handled
+            signal = str(signal)
 
         if signal == "Buy":
             stop_losses.append(entry * (1 - STOP_LOSS_PCT))
@@ -52,7 +55,6 @@ def convert_df_to_excel(df):
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=True, sheet_name='Signals')
-        writer.save()
     return output.getvalue()
 
 # Load & Process Data
@@ -71,4 +73,6 @@ if not last.empty:
     st.write(last[["Close", "EMA5", "EMA20", "Signal", "StopLoss", "Target"]])
 
 # Export to Excel
-st.subh
+st.subheader("📊 Export Signals to Excel")
+st.download_button(label="Download Excel File", data=convert_df_to_excel(df), file_name="nifty_signals.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
