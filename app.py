@@ -104,8 +104,16 @@ if not df.empty and all(col in df.columns for col in ["Close", "EMA5", "EMA20"])
 
     # Charts
     st.subheader("📈 EMA Strategy Chart")
-    # Plot Close, EMA5, and EMA20
-    st.line_chart(df[["Close", "EMA5", "EMA20"]])
+    # Define the columns expected for the chart
+    chart_columns_to_check = ["Close", "EMA5", "EMA20"]
+    # Filter out any columns that might be missing from the list
+    actual_chart_columns = [col for col in chart_columns_to_check if col in df.columns]
+
+    if actual_chart_columns: # Check if there are any columns left to plot
+        st.line_chart(df[actual_chart_columns])
+    else:
+        st.warning("⚠️ Cannot plot EMA Strategy Chart: Required columns (Close, EMA5, EMA20) are missing from the data after processing.")
+
 
     # Show Latest Signal
     # Filter for rows where a Buy or Sell signal was generated
