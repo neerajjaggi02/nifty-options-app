@@ -55,7 +55,7 @@ if not nifty.empty:
         sl = round(entry_price * 0.75, 2)
         target = round(entry_price * 1.5, 2)
 
-        st.subheader("u"\U0001F4CA Suggested Option Trade")
+        st.subheader(u"\U0001F4CA Suggested Option Trade")
         st.write(f"**Strike Price:** {atm_strike} | **Type:** {latest_signal.split()[-1]}")
         st.write(f"**Entry Price:** ₹{entry_price}")
         st.write(f"**Stop Loss:** ₹{sl}")
