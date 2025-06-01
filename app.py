@@ -8,7 +8,7 @@ from option_chain_utils import get_nifty_option_chain
 from strategies import apply_ema_strategy
 
 st.set_page_config(page_title="Nifty 50 Options Trade Helper", layout="wide")
-st.title("\ud83d\udcca Nifty 50 Options Trade Entry/Exit Signal App")
+st.title(u"\U0001F4CA Nifty 50 Options Trade Entry/Exit Signal App")
 
 # Date range for historical data
 end_date = datetime.date.today()
