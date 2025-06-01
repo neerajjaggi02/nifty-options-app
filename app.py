@@ -46,20 +46,17 @@ def fetch_data():
         # Drop rows where 'Close' became NaN after conversion, as they cannot be used for EMA
         df.dropna(subset=['Close'], inplace=True) 
 
-        # Re-check if DataFrame is still not empty after cleaning 'Close' column
-        if df.empty: 
-            st.warning("⚠️ 'Close' column became empty or non-numeric after cleaning. Cannot calculate EMAs.")
-            return pd.DataFrame() # Return empty if no data for EMA calculation
+        # --- CRITICAL CHECK BEFORE EMA CALCULATION ---
+        # Ensure 'Close' column is not empty and is numeric after all cleaning
+        if df['Close'].empty or not pd.api.types.is_numeric_dtype(df['Close']):
+            st.error("❌ 'Close' column is empty or not numeric after all cleaning. Cannot calculate EMAs.")
+            return pd.DataFrame() # Return empty DataFrame if 'Close' is invalid
 
         # Check if there's enough data points for EMA calculation (EMA20 requires at least 20 data points)
+        # This check is now placed after ensuring 'Close' is valid and non-empty
         if len(df) < 20: 
             st.warning(f"⚠️ Insufficient data points ({len(df)} rows) to calculate EMA20. At least 20 rows of valid 'Close' data are needed.")
             return pd.DataFrame() # Return empty if not enough data
-
-        # Final check for 'Close' column validity before EMA calculation
-        if df['Close'].empty or not pd.api.types.is_numeric_dtype(df['Close']):
-            st.error("❌ 'Close' column is empty or not numeric after all cleaning. Cannot calculate EMAs.")
-            return pd.DataFrame()
 
         # Calculate Exponential Moving Averages (EMA)
         df["EMA5"] = df["Close"].ewm(span=5, adjust=False).mean()
