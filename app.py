@@ -3,6 +3,7 @@ import pandas as pd
 import yfinance as yf
 from option_chain_utils import get_nifty_option_chain
 from io import BytesIO
+import requests # Import requests to catch specific exceptions in option chain part
 
 # ---------------------------
 # Settings
@@ -31,11 +32,11 @@ def fetch_data():
             st.error("❌ 'Close' column not found in the downloaded data. Data might be incomplete or malformed.")
             return pd.DataFrame()
             
-        df.dropna(inplace=True) # Remove rows with any missing values
+        df.dropna(inplace=True) # Remove rows with any missing values across all columns first
         
-        # Check if all rows were dropped after dropna()
+        # Check if all rows were dropped after initial dropna()
         if df.empty:
-            st.warning("⚠️ All rows were dropped after `dropna()`. This might indicate significant missing data.")
+            st.warning("⚠️ All rows were dropped after initial `dropna()`. This might indicate significant missing data.")
             return pd.DataFrame()
 
         # Ensure 'Close' column has numeric data type before EMA calculation
@@ -45,23 +46,28 @@ def fetch_data():
         df.dropna(subset=['Close'], inplace=True) 
 
         # Re-check if DataFrame is still not empty after cleaning 'Close' column
-        if not df.empty: 
-            # Calculate Exponential Moving Averages (EMA)
-            df["EMA5"] = df["Close"].ewm(span=5, adjust=False).mean()
-            df["EMA20"] = df["Close"].ewm(span=20, adjust=False).mean()
-        else:
+        if df.empty: 
             st.warning("⚠️ 'Close' column became empty or non-numeric after cleaning. Cannot calculate EMAs.")
             return pd.DataFrame() # Return empty if no data for EMA calculation
 
+        # Check if there's enough data points for EMA calculation (at least for EMA20)
+        if len(df) < 20: # EMA20 requires at least 20 data points
+            st.warning(f"⚠️ Insufficient data points ({len(df)} rows) to calculate EMA20. At least 20 rows of valid 'Close' data are needed.")
+            return pd.DataFrame() # Return empty if not enough data
+
+        # Calculate Exponential Moving Averages (EMA)
+        df["EMA5"] = df["Close"].ewm(span=5, adjust=False).mean()
+        df["EMA20"] = df["Close"].ewm(span=20, adjust=False).mean()
+
         # Explicitly check if EMA columns were created successfully
         if 'EMA5' not in df.columns or 'EMA20' not in df.columns:
-            st.error("❌ EMA5 or EMA20 columns could not be created. Data might be insufficient or problematic for EMA calculation.")
+            st.error("❌ EMA5 or EMA20 columns could not be created. This is unexpected after previous checks, please review data.")
             return pd.DataFrame()
         
         return df
     except Exception as e:
         # Catch any errors during data fetching or initial processing and display a message
-        st.error(f"❌ Error fetching or processing data: {e}. Please ensure '^NSEI' is a valid ticker and you have an internet connection.")
+        st.error(f"❌ Error fetching or processing Nifty data: {e}. Please ensure '^NSEI' is a valid ticker and you have an internet connection.")
         return pd.DataFrame()
 
 def generate_signals(df):
@@ -69,18 +75,27 @@ def generate_signals(df):
     Generates 'Buy' or 'Sell' signals based on EMA crossover strategy.
     """
     df["Signal"] = "" # Initialize 'Signal' column
-    # Generate Buy signal: EMA5 crosses above EMA20
-    df.loc[(df["EMA5"] > df["EMA20"]) & (df["EMA5"].shift(1) <= df["EMA20"].shift(1)), "Signal"] = "Buy"
-    # Generate Sell signal: EMA5 crosses below EMA20
-    df.loc[(df["EMA5"] < df["EMA20"]) & (df["EMA5"].shift(1) >= df["EMA20"].shift(1)), "Signal"] = "Sell"
+    # Ensure EMA5 and EMA20 exist before generating signals
+    if "EMA5" in df.columns and "EMA20" in df.columns:
+        # Generate Buy signal: EMA5 crosses above EMA20
+        df.loc[(df["EMA5"] > df["EMA20"]) & (df["EMA5"].shift(1) <= df["EMA20"].shift(1)), "Signal"] = "Buy"
+        # Generate Sell signal: EMA5 crosses below EMA20
+        df.loc[(df["EMA5"] < df["EMA20"]) & (df["EMA5"].shift(1) >= df["EMA20"].shift(1)), "Signal"] = "Sell"
+    else:
+        st.warning("⚠️ EMA columns not found for signal generation.")
     return df
 
 def apply_sl_target(df):
     """
     Applies Stop Loss (SL) and Target Price based on signals.
     """
-    df["Entry"] = df["Close"] # Entry price is the closing price
-    
+    # Ensure 'Close' column exists before setting 'Entry'
+    if 'Close' in df.columns:
+        df["Entry"] = df["Close"] # Entry price is the closing price
+    else:
+        df["Entry"] = None # Set to None if 'Close' is missing
+        st.warning("⚠️ 'Close' column not found for calculating Entry price.")
+        
     # Calculate Stop Loss
     df["StopLoss"] = df.apply(
         lambda row: row["Entry"] * (1 - STOP_LOSS_PCT) if str(row.get("Signal", "")) == "Buy" 
@@ -121,9 +136,9 @@ if not df.empty and all(col in df.columns for col in ["Close", "EMA5", "EMA20"])
     # Charts
     st.subheader("📈 EMA Strategy Chart")
     # Define the columns expected for the chart
-    chart_columns_to_check = ["Close", "EMA5", "EMA20"]
-    # Filter out any columns that might be missing from the list
-    actual_chart_columns = [col for col in chart_columns_to_check if col in df.columns]
+    chart_columns_to_plot = ["Close", "EMA5", "EMA20"]
+    # Filter out any columns that might be missing from the list (for extra robustness)
+    actual_chart_columns = [col for col in chart_columns_to_plot if col in df.columns]
 
     if actual_chart_columns: # Check if there are any columns left to plot
         st.line_chart(df[actual_chart_columns])
@@ -135,9 +150,15 @@ if not df.empty and all(col in df.columns for col in ["Close", "EMA5", "EMA20"])
     # Filter for rows where a Buy or Sell signal was generated
     last = df[df["Signal"].isin(["Buy", "Sell"])].tail(1)
     if not last.empty:
-        # Display the last signal and its details
+        # Define columns to display for the last signal, ensuring they exist
+        signal_display_columns = ["Close", "EMA5", "EMA20", "Signal", "StopLoss", "Target"]
+        actual_signal_display_columns = [col for col in signal_display_columns if col in last.columns]
+        
         st.success(f"💡 Last Signal: {last['Signal'].values[0]} on {last.index[-1].date()}")
-        st.write(last[["Close", "EMA5", "EMA20", "Signal", "StopLoss", "Target"]])
+        if actual_signal_display_columns:
+            st.write(last[actual_signal_display_columns])
+        else:
+            st.info("Details for the last signal could not be displayed due to missing columns.")
     else:
         st.info("No buy/sell signals generated yet based on the current data and strategy.")
 
@@ -166,10 +187,18 @@ try:
     oc = get_nifty_option_chain()
     if not oc.empty:
         # Display top 20 rows where Open Interest (OI) is greater than 100,000
-        st.dataframe(oc[oc["openInterest"] > 100000].head(20))
+        # Ensure 'openInterest' column exists before filtering
+        if 'openInterest' in oc.columns:
+            st.dataframe(oc[oc["openInterest"] > 100000].head(20))
+        else:
+            st.info("Option chain data loaded, but 'openInterest' column is missing for filtering.")
+            st.dataframe(oc.head(20)) # Display raw top 20 without filtering
     else:
-        st.info("No option chain data available or conditions not met (e.g., no OI > 100K).")
+        st.info("No option chain data available or conditions not met (e.g., no OI > 100K or empty data).")
+except requests.exceptions.JSONDecodeError as json_e:
+    st.error(f"❌ Failed to load option chain: The response was not valid JSON. This usually indicates an issue with the data source or network, or that the API endpoint has changed.")
+    st.exception(json_e)
 except Exception as e:
-    # Catch and display any errors during option chain loading
-    st.error("❌ Failed to load option chain")
+    # Catch and display any other errors during option chain loading
+    st.error(f"❌ An unexpected error occurred while loading option chain: {e}")
     st.exception(e) # Show the full exception details for debugging
