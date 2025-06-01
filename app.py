@@ -201,10 +201,7 @@ if not df.empty and all(col in df.columns for col in ["Close", "EMA5", "EMA20"])
 else:
     st.error("📉 Could not generate signals or charts due to fundamental data issues. Please check data fetching logs.")
 
----
-
 # Option Chain Data
-
 st.subheader("📄 Option Chain Data (OI > 100K)")
 try:
     # Assuming get_nifty_option_chain() fetches the latest option chain data
