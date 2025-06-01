@@ -39,8 +39,12 @@ def fetch_data():
             st.warning(f"⚠️ Insufficient data points ({len(df)} rows) to calculate EMA20.")
             return pd.DataFrame()
 
-        df["EMA5"] = df["Close"].ewm(span=5, adjust=False).mean()
-        df["EMA20"] = df["Close"].ewm(span=20, adjust=False).mean()
+        if isinstance(df['Close'], (pd.Series, list)):
+            df["EMA5"] = df["Close"].ewm(span=5, adjust=False).mean()
+            df["EMA20"] = df["Close"].ewm(span=20, adjust=False).mean()
+        else:
+            st.error("❌ 'Close' column is not a valid Series for EMA calculation.")
+            return pd.DataFrame()
 
         if 'EMA5' not in df.columns or 'EMA20' not in df.columns:
             st.error("❌ EMA5 or EMA20 columns could not be created.")
@@ -53,11 +57,11 @@ def fetch_data():
 
 def generate_signals(df):
     df["Signal"] = ""
-    if "EMA5" in df.columns and "EMA20" in df.columns:
+    if "EMA5" in df.columns and "EMA20" in df.columns and not df["EMA5"].isnull().all() and not df["EMA20"].isnull().all():
         df.loc[(df["EMA5"] > df["EMA20"]) & (df["EMA5"].shift(1) <= df["EMA20"].shift(1)), "Signal"] = "Buy"
         df.loc[(df["EMA5"] < df["EMA20"]) & (df["EMA5"].shift(1) >= df["EMA20"].shift(1)), "Signal"] = "Sell"
     else:
-        st.warning("⚠️ EMA columns not found for signal generation.")
+        st.warning("⚠️ EMA columns not found or invalid for signal generation.")
     return df
 
 def apply_sl_target(df):
@@ -126,7 +130,7 @@ else:
 st.subheader("📄 Option Chain Data (OI > 100K)")
 try:
     oc = get_nifty_option_chain()
-    if not oc.empty:
+    if isinstance(oc, pd.DataFrame) and not oc.empty:
         if 'openInterest' in oc.columns:
             oc['openInterest'] = pd.to_numeric(oc['openInterest'], errors='coerce')
             oc.dropna(subset=['openInterest'], inplace=True)
@@ -137,6 +141,8 @@ try:
         else:
             st.info("'openInterest' column missing in option chain.")
             st.dataframe(oc.head(20))
+    elif oc is None:
+        st.warning("⚠️ Option chain API returned None.")
     else:
         st.info("No option chain data available.")
 except requests.exceptions.JSONDecodeError as json_e:
