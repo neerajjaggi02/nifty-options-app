@@ -29,7 +29,7 @@ if not nifty.empty:
     signals = df[df["Trade"].isin([1, -1])][["Close", "Trade"]]
     signals["Action"] = signals["Trade"].apply(lambda x: "BUY CALL" if x == 1 else "BUY PUT")
 
-    st.subheader("u"\U0001F4CA Trade Signals")
+    st.subheader(u"\U0001F4CA Trade Signals")
     st.dataframe(signals.tail(10))
 
     latest_signal = signals.iloc[-1]["Action"] if not signals.empty else "No Signal"
