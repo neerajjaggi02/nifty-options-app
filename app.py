@@ -11,7 +11,7 @@ STOP_LOSS_PCT = 0.01  # 1%
 TARGET_PCT = 0.02     # 2%
 
 # ---------------------------
-st.title("📌 Nifty 50 Options Trade Signal App with SL/Target & Export")
+st.title("� Nifty 50 Options Trade Signal App with SL/Target & Export")
 
 @st.cache_data(ttl=3600)
 def fetch_data():
@@ -32,7 +32,8 @@ def fetch_data():
             st.error("❌ 'Close' column not found in the downloaded data. Data might be incomplete or malformed.")
             return pd.DataFrame()
             
-        df.dropna(inplace=True) # Remove rows with any missing values across all columns first
+        # Initial dropna to remove rows with any missing values across all columns
+        df.dropna(inplace=True) 
         
         # Check if all rows were dropped after initial dropna()
         if df.empty:
@@ -50,10 +51,15 @@ def fetch_data():
             st.warning("⚠️ 'Close' column became empty or non-numeric after cleaning. Cannot calculate EMAs.")
             return pd.DataFrame() # Return empty if no data for EMA calculation
 
-        # Check if there's enough data points for EMA calculation (at least for EMA20)
-        if len(df) < 20: # EMA20 requires at least 20 data points
+        # Check if there's enough data points for EMA calculation (EMA20 requires at least 20 data points)
+        if len(df) < 20: 
             st.warning(f"⚠️ Insufficient data points ({len(df)} rows) to calculate EMA20. At least 20 rows of valid 'Close' data are needed.")
             return pd.DataFrame() # Return empty if not enough data
+
+        # Final check for 'Close' column validity before EMA calculation
+        if df['Close'].empty or not pd.api.types.is_numeric_dtype(df['Close']):
+            st.error("❌ 'Close' column is empty or not numeric after all cleaning. Cannot calculate EMAs.")
+            return pd.DataFrame()
 
         # Calculate Exponential Moving Averages (EMA)
         df["EMA5"] = df["Close"].ewm(span=5, adjust=False).mean()
@@ -61,7 +67,7 @@ def fetch_data():
 
         # Explicitly check if EMA columns were created successfully
         if 'EMA5' not in df.columns or 'EMA20' not in df.columns:
-            st.error("❌ EMA5 or EMA20 columns could not be created. This is unexpected after previous checks, please review data.")
+            st.error("❌ EMA5 or EMA20 columns could not be created. This is unexpected, please review data processing logic.")
             return pd.DataFrame()
         
         return df
@@ -82,7 +88,7 @@ def generate_signals(df):
         # Generate Sell signal: EMA5 crosses below EMA20
         df.loc[(df["EMA5"] < df["EMA20"]) & (df["EMA5"].shift(1) >= df["EMA20"].shift(1)), "Signal"] = "Sell"
     else:
-        st.warning("⚠️ EMA columns not found for signal generation.")
+        st.warning("⚠️ EMA columns not found for signal generation. Signals will not be generated.")
     return df
 
 def apply_sl_target(df):
@@ -90,24 +96,24 @@ def apply_sl_target(df):
     Applies Stop Loss (SL) and Target Price based on signals.
     """
     # Ensure 'Close' column exists before setting 'Entry'
-    if 'Close' in df.columns:
+    if 'Close' in df.columns and pd.api.types.is_numeric_dtype(df['Close']):
         df["Entry"] = df["Close"] # Entry price is the closing price
     else:
-        df["Entry"] = None # Set to None if 'Close' is missing
-        st.warning("⚠️ 'Close' column not found for calculating Entry price.")
+        df["Entry"] = None # Set to None if 'Close' is missing or not numeric
+        st.warning("⚠️ 'Close' column not found or not numeric for calculating Entry price. SL/Target will be None.")
         
     # Calculate Stop Loss
     df["StopLoss"] = df.apply(
-        lambda row: row["Entry"] * (1 - STOP_LOSS_PCT) if str(row.get("Signal", "")) == "Buy" 
-        else row["Entry"] * (1 + STOP_LOSS_PCT) if str(row.get("Signal", "")) == "Sell" 
+        lambda row: row["Entry"] * (1 - STOP_LOSS_PCT) if str(row.get("Signal", "")) == "Buy" and row["Entry"] is not None
+        else row["Entry"] * (1 + STOP_LOSS_PCT) if str(row.get("Signal", "")) == "Sell" and row["Entry"] is not None
         else None,
         axis=1
     )
     
     # Calculate Target Price
     df["Target"] = df.apply(
-        lambda row: row["Entry"] * (1 + TARGET_PCT) if str(row.get("Signal", "")) == "Buy" 
-        else row["Entry"] * (1 - TARGET_PCT) if str(row.get("Signal", "")) == "Sell" 
+        lambda row: row["Entry"] * (1 + TARGET_PCT) if str(row.get("Signal", "")) == "Buy" and row["Entry"] is not None
+        else row["Entry"] * (1 - TARGET_PCT) if str(row.get("Signal", "")) == "Sell" and row["Entry"] is not None
         else None,
         axis=1
     )
@@ -189,12 +195,19 @@ try:
         # Display top 20 rows where Open Interest (OI) is greater than 100,000
         # Ensure 'openInterest' column exists before filtering
         if 'openInterest' in oc.columns:
-            st.dataframe(oc[oc["openInterest"] > 100000].head(20))
+            # Convert 'openInterest' to numeric, coercing errors to NaN, then drop NaNs
+            oc['openInterest'] = pd.to_numeric(oc['openInterest'], errors='coerce')
+            oc.dropna(subset=['openInterest'], inplace=True)
+            
+            if not oc.empty:
+                st.dataframe(oc[oc["openInterest"] > 100000].head(20))
+            else:
+                st.info("Option chain data loaded, but no entries meet the 'OI > 100K' criteria after cleaning.")
         else:
             st.info("Option chain data loaded, but 'openInterest' column is missing for filtering.")
             st.dataframe(oc.head(20)) # Display raw top 20 without filtering
     else:
-        st.info("No option chain data available or conditions not met (e.g., no OI > 100K or empty data).")
+        st.info("No option chain data available or conditions not met (e.g., empty data from API).")
 except requests.exceptions.JSONDecodeError as json_e:
     st.error(f"❌ Failed to load option chain: The response was not valid JSON. This usually indicates an issue with the data source or network, or that the API endpoint has changed.")
     st.exception(json_e)
@@ -202,3 +215,4 @@ except Exception as e:
     # Catch and display any other errors during option chain loading
     st.error(f"❌ An unexpected error occurred while loading option chain: {e}")
     st.exception(e) # Show the full exception details for debugging
+�
