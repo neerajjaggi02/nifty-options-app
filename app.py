@@ -31,7 +31,7 @@ def apply_sl_target(df):
     targets = []
 
     for _, row in df.iterrows():
-        signal = row["Signal"]
+        signal = str(row["Signal"]) if pd.notna(row["Signal"]) else ""
         entry = row["Close"]
 
         if signal == "Buy":
@@ -71,19 +71,4 @@ if not last.empty:
     st.write(last[["Close", "EMA5", "EMA20", "Signal", "StopLoss", "Target"]])
 
 # Export to Excel
-st.subheader("📥 Export Signals to Excel")
-signal_df = df[df["Signal"].isin(["Buy", "Sell"])]
-if not signal_df.empty:
-    excel_data = convert_df_to_excel(signal_df)
-    st.download_button("📤 Download Signals", excel_data, file_name="nifty_signals.xlsx")
-else:
-    st.info("No signals to export.")
-
-# Option Chain
-st.subheader("📄 Option Chain Data (OI > 100K)")
-try:
-    oc = get_nifty_option_chain()
-    st.dataframe(oc[oc["openInterest"] > 100000].head(20))
-except Exception as e:
-    st.error("❌ Failed to load option chain")
-    st.exception(e)
+st.subh
