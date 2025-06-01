@@ -46,10 +46,10 @@ def fetch_data():
         # Drop rows where 'Close' became NaN after conversion, as they cannot be used for EMA
         df.dropna(subset=['Close'], inplace=True) 
 
-        # --- CRITICAL CHECK BEFORE EMA CALCULATION ---
-        # Ensure 'Close' column is not empty and is numeric after all cleaning
-        if df['Close'].empty or not pd.api.types.is_numeric_dtype(df['Close']):
-            st.error("❌ 'Close' column is empty or not numeric after all cleaning. Cannot calculate EMAs.")
+        # --- CRITICAL CHECKS BEFORE EMA CALCULATION ---
+        # Ensure 'Close' column is not empty, is numeric, and has enough non-NaN values
+        if df['Close'].empty or not pd.api.types.is_numeric_dtype(df['Close']) or df['Close'].count() == 0:
+            st.error("❌ 'Close' column is empty or not numeric after all cleaning, or contains no valid data. Cannot calculate EMAs.")
             return pd.DataFrame() # Return empty DataFrame if 'Close' is invalid
 
         # Check if there's enough data points for EMA calculation (EMA20 requires at least 20 data points)
