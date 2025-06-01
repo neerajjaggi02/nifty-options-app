@@ -27,19 +27,25 @@ def generate_signals(df):
     return df
 
 def apply_sl_target(df):
-    def calc_sl_target(row):
-        signal = row["Signal"]
-        entry = row["Close"]  # Use Close price for entry
-        if signal == "Buy":
-            return entry * (1 - STOP_LOSS_PCT), entry * (1 + TARGET_PCT)
-        elif signal == "Sell":
-            return entry * (1 + STOP_LOSS_PCT), entry * (1 - TARGET_PCT)
-        else:
-            return None, None
+    stop_losses = []
+    targets = []
 
-    sl_target = df.apply(calc_sl_target, axis=1)
-    df["StopLoss"] = sl_target.apply(lambda x: x[0])
-    df["Target"] = sl_target.apply(lambda x: x[1])
+    for _, row in df.iterrows():
+        signal = row["Signal"]
+        entry = row["Close"]
+
+        if signal == "Buy":
+            stop_losses.append(entry * (1 - STOP_LOSS_PCT))
+            targets.append(entry * (1 + TARGET_PCT))
+        elif signal == "Sell":
+            stop_losses.append(entry * (1 + STOP_LOSS_PCT))
+            targets.append(entry * (1 - TARGET_PCT))
+        else:
+            stop_losses.append(None)
+            targets.append(None)
+
+    df["StopLoss"] = stop_losses
+    df["Target"] = targets
     return df
 
 def convert_df_to_excel(df):
